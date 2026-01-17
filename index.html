@@ -445,7 +445,7 @@
                 const genAI = new GoogleGenerativeAI(apiKey);
                 const model = genAI.getGenerativeModel({ 
                     model: "gemini-2.5-flash-preview-09-2025", 
-                    systemInstruction: `You are Smart_Tech AI, developed by Samuel Ajibade (Smart Tech) with support from Victoria (Veetasha Fashion Homes).` 
+                    systemInstruction: `You are Smart_Tech AI, developed by Samuel Ajibade (Smart Tech)` 
                 });
                 
                 const result = await model.generateContent(query || "Analyze inputs.");
