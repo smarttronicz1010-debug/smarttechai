@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart_Tech AI | Samuel Ajibade</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --sky-blue: #0ea5e9;
+            --deep-blue: #1e3a8a;
+            --black: #020617;
+            --grey: #64748b;
+            --accent: #0ea5e9;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--black);
+            color: #ffffff; height: 100dvh; margin: 0; overflow: hidden; transition: all 0.3s ease;
+        }
+
+        #particle-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0; pointer-events: none; opacity: 0.4; transition: opacity 0.5s ease;
+        }
+
+        .app-shell { display: flex; width: 100vw; height: 100dvh; position: relative; z-index: 1; }
+
+        .sidebar {
+            width: 300px; background: rgba(2, 6, 23, 0.95); backdrop-blur: 20px; border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; padding: 24px; z-index: 50;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); width: 85%; }
+            .sidebar.open { transform: translateX(0); }
+        }
+
+        .viewport { flex: 1; display: flex; flex-direction: column; position: relative; background: transparent; overflow: hidden; }
+
+        .nav-link {
+            display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px;
+            color: var(--grey); cursor: pointer; font-size: 0.85rem; font-weight: 600;
+            transition: 0.2s; margin-bottom: 4px;
+        }
+        .nav-link:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+        .nav-link.active { color: #fff; background: var(--accent); }
+
+        .history-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 12px; border-radius: 10px; font-size: 0.75rem;
+            color: var(--grey); cursor: pointer; transition: 0.2s;
+        }
+        .history-item:hover { background: rgba(255, 255, 255, 0.05); color: white; }
+
+        .chat-bubble { max-width: 85%; padding: 16px; border-radius: 18px; position: relative; animation: slideUp 0.3s ease; }
+        .bubble-user { background: linear-gradient(135deg, var(--sky-blue), var(--deep-blue)); align-self: flex-end; border-bottom-right-radius: 4px; }
+        .bubble-ai { background: var(--glass); border: 1px solid var(--border); backdrop-blur: 10px; align-self: flex-start; border-bottom-left-radius: 4px; }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .settings-card { 
+            background: var(--glass); border: 1px solid var(--border); 
+            border-radius: 16px; padding: 14px; display: flex; 
+            align-items: center; justify-content: space-between;
+            transition: all 0.2s ease;
+        }
+        .settings-card:hover { background: rgba(255,255,255,0.06); border-color: var(--sky-blue); }
+        
+        .shimmer { background: linear-gradient(90deg, #fff 0%, var(--sky-blue) 50%, #fff 100%); background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shine 4s linear infinite; }
+        @keyframes shine { to { background-position: 200% center; } }
+        
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+        .switch { position: relative; display: inline-block; width: 36px; height: 18px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--sky-blue); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        .voice-btn.listening { background: #ef4444; animation: pulse-red 1.5s infinite; }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        
+        .upload-chip { background: rgba(14, 165, 233, 0.1); border: 1px solid var(--sky-blue); padding: 2px 8px; border-radius: 999px; font-size: 10px; color: var(--sky-blue); display: flex; align-items: center; gap: 4px; }
+    </style>
+</head>
+<body>
+
+    <canvas id="particle-canvas"></canvas>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 hidden" onclick="toggleSidebar()"></div>
+
+    <div class="app-shell">
+        <aside id="sidebar" class="sidebar">
+            <div class="flex items-center gap-3 mb-8">
+                <div class="w-10 h-10 bg-sky-500 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/20">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+                </div>
+                <div>
+                    <h1 class="font-black text-xs uppercase leading-none tracking-tighter text-slate-400">Smart_Tech</h1>
+                    <span class="text-[14px] text-white font-black uppercase tracking-tight">AI</span>
+                </div>
+            </div>
+
+            <button onclick="newChat()" class="w-full mb-6 py-3 px-4 bg-sky-500 hover:bg-sky-400 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-sky-500/20">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+                New Chat
+            </button>
+
+            <nav class="space-y-1 overflow-y-auto custom-scroll pr-2 flex-1">
+                <div id="btn-chat" class="nav-link active" onclick="tab('chat', this)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <span>Assistant</span>
+                </div>
+
+                <div class="pt-6 pb-2">
+                    <h3 class="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] px-4">Chat History</h3>
+                </div>
+                <div id="chat-history-list" class="space-y-1 px-2"></div>
+
+                <div class="pt-6">
+                    <div id="btn-creator" class="nav-link" onclick="tab('creator', this)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        <span>The Creator</span>
+                    </div>
+                    <div id="btn-settings" class="nav-link" onclick="tab('settings', this)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <span>Control Center</span>
+                    </div>
+                </div>
+            </nav>
+            <div class="mt-auto pt-4 border-t border-white/5 text-center">
+                <p class="text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+                    Built by Samuel Ajibade<br>SMART TECH © 2024
+                </p>
+            </div>
+        </aside>
+
+        <main class="viewport">
+            <header class="h-16 px-6 flex items-center justify-between bg-black/20 backdrop-blur-xl border-b border-white/5 z-20">
+                <button onclick="toggleSidebar()" class="lg:hidden text-white p-2 hover:bg-white/5 rounded-lg">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"></path></svg>
+                </button>
+                <div class="flex items-center gap-3 ml-auto">
+                    <div id="clock" class="text-[10px] font-black text-slate-400 tabular-nums">00:00:00</div>
+                    <div class="w-8 h-8 rounded-full bg-sky-500/20 border border-sky-500/30 overflow-hidden cursor-pointer" onclick="tab('creator', document.getElementById('btn-creator'))">
+                        <img src="1744482211522.jpeg" class="w-full h-full object-cover">
+                    </div>
+                </div>
+            </header>
+
+            <!-- CHAT VIEW -->
+            <div id="view-chat" class="view-pane flex flex-col h-full overflow-hidden">
+                <div id="scroll-root" class="flex-1 overflow-y-auto p-4 md:p-12 space-y-8 custom-scroll">
+                    <div id="hero" class="py-20 text-center space-y-4">
+                        <h2 class="text-4xl md:text-7xl font-black shimmer uppercase italic tracking-tighter leading-none">Smart_Tech AI</h2>
+                        <div class="max-w-xl mx-auto">
+                            <p class="text-slate-400 text-xs md:text-sm font-medium leading-relaxed italic px-4">
+                                Your personal chatbot built by Samuel Ajibade (Smart Tech) with a supportive bestie Victoria (owner of Veetasha Fashion Homes).
+                            </p>
+                        </div>
+                    </div>
+                    <div id="chat-stream" class="flex flex-col gap-8 max-w-4xl mx-auto w-full pb-20"></div>
+                </div>
+
+                <div class="p-4 md:p-8 bg-gradient-to-t from-black via-black/90 to-transparent">
+                    <div class="max-w-4xl mx-auto space-y-3">
+                        <div id="upload-preview" class="flex flex-wrap gap-2 px-2"></div>
+                        <div class="bg-white/5 border border-white/10 rounded-2xl md:rounded-3xl p-2 flex items-end gap-2 shadow-2xl backdrop-blur-lg">
+                            <button onclick="document.getElementById('file-upload').click()" class="w-12 h-12 text-slate-400 hover:text-white flex items-center justify-center rounded-xl hover:bg-white/5 transition-all">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                            </button>
+                            <input type="file" id="file-upload" class="hidden" multiple onchange="handleFiles(this.files)">
+                            
+                            <textarea id="user-in" rows="1" placeholder="smart_tech is here for you" class="flex-1 py-3 px-2 text-sm md:text-base font-medium resize-none bg-transparent outline-none text-white"></textarea>
+                            
+                            <button onclick="startVoice()" id="voice-btn" class="voice-btn w-12 h-12 text-slate-400 hover:text-white flex items-center justify-center rounded-xl hover:bg-white/5 transition-all">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path></svg>
+                            </button>
+                            
+                            <button onclick="run()" class="w-12 h-12 md:w-14 md:h-14 bg-sky-500 text-white rounded-xl md:rounded-2xl flex items-center justify-center hover:bg-sky-400 shadow-lg shadow-sky-500/20">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CREATOR VIEW -->
+            <div id="view-creator" class="view-pane hidden h-full overflow-y-auto custom-scroll p-6 md:p-12">
+                <div class="max-w-4xl mx-auto space-y-16 pb-32">
+                    <!-- Bio Header -->
+                    <div class="flex flex-col md:flex-row items-center gap-10">
+                        <div class="relative">
+                            <div class="w-48 h-48 rounded-full border-4 border-sky-500/30 p-1 bg-gradient-to-tr from-sky-500 to-indigo-500 shadow-2xl">
+                                <img src="1744482211522.jpeg" class="w-full h-full object-cover rounded-full">
+                            </div>
+                            <div class="absolute -bottom-2 -right-2 bg-sky-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Active</div>
+                        </div>
+                        <div class="text-center md:text-left space-y-4 flex-1">
+                            <div>
+                                <h2 class="text-4xl font-black tracking-tighter shimmer uppercase">Samuel Ajibade Adebolarinwa Shalom Peter</h2>
+                                <p class="text-sky-400 font-bold uppercase tracking-[0.3em] text-[10px] mt-1">(SMART_TECH)</p>
+                            </div>
+                            <p class="text-slate-500 font-black uppercase text-xs tracking-widest">Programmer • Web Developer • Creative Technologist</p>
+                            <p class="text-slate-300 font-medium italic">“Young creator building smart software and clean digital experiences.”</p>
+                        </div>
+                    </div>
+
+                    <!-- Main Bio -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 space-y-8">
+                            <section class="bg-white/5 border border-white/10 rounded-3xl p-8">
+                                <h3 class="text-sky-400 font-black uppercase text-[10px] tracking-widest mb-4">About Me</h3>
+                                <p class="text-slate-300 leading-relaxed">
+                                    Hey there! I'm Samuel Ajibade, better known in the digital world as <span class="text-sky-400 font-bold">SMART_TECH</span>. I'm a 16-year-old SS3 student with a deep-rooted passion for technology and innovation. My journey into the world of programming began at the <span class="text-sky-400">age of 12</span>, and since then, I've been obsessed with turning complex ideas into functional, beautiful code.
+                                    <br><br>
+                                    As an aspiring Robotics Engineer and Computer Scientist, I specialize in languages like Python and Kivy for application development, alongside HTML and CSS for high-end web experiences. Beyond the terminal, I'm a multifaceted creative—I find my flow in photography, UI/UX design, and professional media manipulation.
+                                </p>
+                            </section>
+
+                            <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="p-6 bg-white/5 rounded-2xl border border-white/10">
+                                    <h4 class="text-sky-400 font-black uppercase text-[9px] tracking-widest mb-4">Projects</h4>
+                                    <ul class="space-y-2 text-sm font-bold text-slate-300">
+                                        <li>• SMART_AI</li>
+                                        <li>• SMART_WEARS</li>
+                                        <li>• BABS.LEARN</li>
+                                        <li>• TECH_AI</li>
+                                        <li>• AURA_STUDY</li>
+                                        <li class="text-slate-500 text-[10px] italic pt-2">More coming soon...</li>
+                                    </ul>
+                                </div>
+                                <div class="p-6 bg-white/5 rounded-2xl border border-white/10">
+                                    <h4 class="text-sky-400 font-black uppercase text-[9px] tracking-widest mb-4">Services</h4>
+                                    <ul class="space-y-2 text-sm font-bold text-slate-300">
+                                        <li>• Website Development</li>
+                                        <li>• Graphics Design</li>
+                                        <li>• Photo Editing</li>
+                                        <li>• Photo Manipulation</li>
+                                        <li>• Video Editing</li>
+                                    </ul>
+                                </div>
+                            </section>
+                        </div>
+
+                        <!-- Sidebar Info -->
+                        <div class="space-y-4">
+                            <div class="bg-white/5 rounded-2xl p-6 border border-white/10">
+                                <h4 class="text-sky-400 font-black uppercase text-[9px] tracking-widest mb-4">Core Skills</h4>
+                                <div class="flex flex-wrap gap-2">
+                                    <span class="px-3 py-1 bg-sky-500/10 text-sky-400 text-[9px] font-black rounded-lg border border-sky-500/20">PYTHON</span>
+                                    <span class="px-3 py-1 bg-sky-500/10 text-sky-400 text-[9px] font-black rounded-lg border border-sky-500/20">KIVY</span>
+                                    <span class="px-3 py-1 bg-sky-500/10 text-sky-400 text-[9px] font-black rounded-lg border border-sky-500/20">HTML/CSS</span>
+                                    <span class="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[9px] font-black rounded-lg border border-indigo-500/20">UI/UX</span>
+                                    <span class="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[9px] font-black rounded-lg border border-indigo-500/20">GRAPHICS</span>
+                                    <span class="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[9px] font-black rounded-lg border border-indigo-500/20">VIDEO EDITING</span>
+                                    <span class="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[9px] font-black rounded-lg border border-indigo-500/20">PHOTOGRAPHY</span>
+                                </div>
+                            </div>
+                            <div class="bg-white/5 rounded-2xl p-6 border border-white/10">
+                                <h4 class="text-sky-400 font-black uppercase text-[9px] tracking-widest mb-4">Connections</h4>
+                                <div class="space-y-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-[10px] font-black">EA</div>
+                                        <div><p class="text-[11px] font-bold">Ekemah Andrew</p><p class="text-[8px] text-slate-500 font-black uppercase">Friend / Collaborator</p></div>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-[10px] font-black">KV</div>
+                                        <div><p class="text-[11px] font-bold">Ifeanyichukwu Collins</p><p class="text-[8px] text-slate-500 font-black uppercase">Kairos Vantari</p></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white/5 rounded-2xl p-6 border border-white/10">
+                                <h4 class="text-sky-400 font-black uppercase text-[9px] tracking-widest mb-4">Palette</h4>
+                                <div class="flex gap-2">
+                                    <div class="w-6 h-6 rounded-full bg-[#0ea5e9] border border-white/20"></div>
+                                    <div class="w-6 h-6 rounded-full bg-[#020617] border border-white/20"></div>
+                                    <div class="w-6 h-6 rounded-full bg-[#1e3a8a] border border-white/20"></div>
+                                    <div class="w-6 h-6 rounded-full bg-[#64748b] border border-white/20"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SETTINGS VIEW -->
+            <div id="view-settings" class="view-pane hidden p-6 md:px-12 md:py-8 h-full overflow-y-auto custom-scroll">
+                <div class="max-w-5xl mx-auto space-y-12 pb-48">
+                    <header>
+                        <h2 class="text-3xl font-black uppercase tracking-tighter shimmer">Control Center</h2>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-widest mt-2">Personalize your neural interface</p>
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Appearance (8 Settings) -->
+                        <div class="col-span-full border-b border-white/5 pb-2 mt-4"><h3 class="text-[10px] font-black uppercase text-sky-400">Appearance & Theme</h3></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Particles</h4><p class="text-[8px] text-slate-500 uppercase">Live background nodes</p></div><label class="switch"><input type="checkbox" checked onchange="set('particles', this.checked)"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Glassmorphism</h4><p class="text-[8px] text-slate-500 uppercase">Translucent panels</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Animations</h4><p class="text-[8px] text-slate-500 uppercase">Smooth UI transitions</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Mono Mode</h4><p class="text-[8px] text-slate-500 uppercase">Black & white interface</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Grid Pattern</h4><p class="text-[8px] text-slate-500 uppercase">Add background grid</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Rounded UI</h4><p class="text-[8px] text-slate-500 uppercase">Max corner radius</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Neon Borders</h4><p class="text-[8px] text-slate-500 uppercase">Glow on hover</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">OLED Black</h4><p class="text-[8px] text-slate-500 uppercase">Pure #000 background</p></div><label class="switch"><input type="checkbox" onchange="document.body.style.backgroundColor = this.checked ? '#000' : '#020617'"><span class="slider"></span></label></div>
+
+                        <!-- Neural Logic (8 Settings) -->
+                        <div class="col-span-full border-b border-white/5 pb-2 mt-8"><h3 class="text-[10px] font-black uppercase text-indigo-400">Neural Intelligence</h3></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Auto-Correction</h4><p class="text-[8px] text-slate-500 uppercase">Fix typo errors</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Creative Mode</h4><p class="text-[8px] text-slate-500 uppercase">Higher randomness</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Code Optimizer</h4><p class="text-[8px] text-slate-500 uppercase">Focus on code output</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Strict Tone</h4><p class="text-[8px] text-slate-500 uppercase">Formal AI persona</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Search Grounding</h4><p class="text-[8px] text-slate-500 uppercase">Live web results</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Stream Thinking</h4><p class="text-[8px] text-slate-500 uppercase">Show AI reasoning</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Context Lock</h4><p class="text-[8px] text-slate-500 uppercase">Persistent memory</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Short Replies</h4><p class="text-[8px] text-slate-500 uppercase">Keep it concise</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+
+                        <!-- Interaction (8 Settings) -->
+                        <div class="col-span-full border-b border-white/5 pb-2 mt-8"><h3 class="text-[10px] font-black uppercase text-purple-400">Interaction & Audio</h3></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Speech Reply</h4><p class="text-[8px] text-slate-500 uppercase">AI reads responses</p></div><label class="switch"><input type="checkbox" id="s-voice-out"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Haptic Feedback</h4><p class="text-[8px] text-slate-500 uppercase">Mobile vibration</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Sound Effects</h4><p class="text-[8px] text-slate-500 uppercase">Click & alert sounds</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Typewriter Effect</h4><p class="text-[8px] text-slate-500 uppercase">Simulate typing</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Markdown Support</h4><p class="text-[8px] text-slate-500 uppercase">Rich text formatting</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Auto-Scroll</h4><p class="text-[8px] text-slate-500 uppercase">Follow AI stream</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Key Bindings</h4><p class="text-[8px] text-slate-500 uppercase">Enable shortcuts</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Voice Awake</h4><p class="text-[8px] text-slate-500 uppercase">Always listening</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+
+                        <!-- Privacy & Misc (8 Settings) -->
+                        <div class="col-span-full border-b border-white/5 pb-2 mt-8"><h3 class="text-[10px] font-black uppercase text-red-400">Privacy & System</h3></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Local Sync</h4><p class="text-[8px] text-slate-500 uppercase">Store history locally</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Auto-Clear</h4><p class="text-[8px] text-slate-500 uppercase">Clear on refresh</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Incognito Mode</h4><p class="text-[8px] text-slate-500 uppercase">No history logging</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Session Lock</h4><p class="text-[8px] text-slate-500 uppercase">PIN on startup</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Low Latency</h4><p class="text-[8px] text-slate-500 uppercase">Faster responses</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Dev Console</h4><p class="text-[8px] text-slate-500 uppercase">Show system logs</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">API Status</h4><p class="text-[8px] text-slate-500 uppercase">Link health check</p></div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+                        <div class="settings-card"><div><h4 class="text-xs font-bold">Debug Overlay</h4><p class="text-[8px] text-slate-500 uppercase">FPS & Load metrics</p></div><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+        import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+        
+        const apiKey = "AIzaSyDZpnWG7aIRDKC8p9FcePAVT12DTm-RaNc";
+        const dom = {
+            in: document.getElementById('user-in'),
+            stream: document.getElementById('chat-stream'),
+            scroll: document.getElementById('scroll-root'),
+            hero: document.getElementById('hero'),
+            sidebar: document.getElementById('sidebar'),
+            canvas: document.getElementById('particle-canvas'),
+            clock: document.getElementById('clock'),
+            voiceBtn: document.getElementById('voice-btn'),
+            preview: document.getElementById('upload-preview'),
+            historyList: document.getElementById('chat-history-list')
+        };
+
+        let chatHistory = JSON.parse(localStorage.getItem('smart_tech_history') || '[]');
+        const currentFiles = [];
+
+        function saveHistory() {
+            localStorage.setItem('smart_tech_history', JSON.stringify(chatHistory));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            dom.historyList.innerHTML = '';
+            chatHistory.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'history-item group';
+                div.innerHTML = `
+                    <span class="truncate pr-2">${item.title}</span>
+                    <button onclick="deleteChat(${index})" class="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                    </button>
+                `;
+                div.onclick = (e) => {
+                    if(e.target.closest('button')) return;
+                    loadChat(index);
+                };
+                dom.historyList.appendChild(div);
+            });
+        }
+
+        window.deleteChat = (index) => {
+            chatHistory.splice(index, 1);
+            saveHistory();
+        };
+
+        window.newChat = () => {
+            dom.stream.innerHTML = '';
+            dom.hero.classList.remove('hidden');
+            dom.in.value = '';
+            dom.preview.innerHTML = '';
+            currentFiles.length = 0;
+            tab('chat', document.getElementById('btn-chat'));
+        };
+
+        function loadChat(index) {
+            const chat = chatHistory[index];
+            dom.stream.innerHTML = '';
+            dom.hero.classList.add('hidden');
+            chat.messages.forEach(m => append(m.role, m.text, false));
+            tab('chat', document.getElementById('btn-chat'));
+        }
+
+        window.handleFiles = (files) => {
+            Array.from(files).forEach(f => {
+                currentFiles.push(f);
+                const chip = document.createElement('div');
+                chip.className = 'upload-chip';
+                chip.innerHTML = `<span>${f.name.substring(0, 10)}...</span><button onclick="this.parentElement.remove()" class="hover:text-white">×</button>`;
+                dom.preview.appendChild(chip);
+            });
+        };
+
+        window.run = async (customMsg = null) => {
+            const query = customMsg || dom.in.value.trim();
+            if(!query && currentFiles.length === 0) return;
+            
+            dom.hero.classList.add('hidden');
+            let displayMsg = query || "[Uploaded Content]";
+            
+            append('user', displayMsg);
+            dom.in.value = '';
+            dom.preview.innerHTML = '';
+            currentFiles.length = 0;
+
+            const loader = showLoader();
+            try {
+                const genAI = new GoogleGenerativeAI(apiKey);
+                const model = genAI.getGenerativeModel({ 
+                    model: "gemini-2.5-flash-preview-09-2025", 
+                    systemInstruction: `You are Smart_Tech AI, developed by Samuel Ajibade (Smart Tech) with support from Victoria (Veetasha Fashion Homes).` 
+                });
+                
+                const result = await model.generateContent(query || "Analyze inputs.");
+                loader.remove();
+                const responseText = result.response.text();
+                append('ai', responseText);
+
+                if(query) {
+                    const firstMsg = query.substring(0, 20) + "...";
+                    chatHistory.unshift({ title: firstMsg, messages: [{role: 'user', text: displayMsg}, {role: 'ai', text: responseText}] });
+                    saveHistory();
+                }
+                
+                if(document.getElementById('s-voice-out').checked) speak(responseText);
+            } catch (err) {
+                loader.remove();
+                append('ai', "Neural link error.");
+            }
+        };
+
+        function speak(text) {
+            const synth = window.speechSynthesis;
+            const utter = new SpeechSynthesisUtterance(text.replace(/[*#]/g, ''));
+            synth.speak(utter);
+        }
+
+        window.startVoice = () => {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return;
+            const rec = new SpeechRecognition();
+            rec.onstart = () => dom.voiceBtn.classList.add('listening');
+            rec.onend = () => dom.voiceBtn.classList.remove('listening');
+            rec.onresult = (e) => { dom.in.value = e.results[0][0].transcript; run(); };
+            rec.start();
+        };
+
+        function append(role, text, shouldScroll = true) {
+            const row = document.createElement('div');
+            row.className = `flex flex-col w-full mb-6 ${role === 'user' ? 'items-end' : 'items-start'}`;
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${role === 'user' ? 'bubble-user' : 'bubble-ai'} text-sm prose prose-invert`;
+            bubble.innerHTML = marked.parse(text);
+            row.appendChild(bubble);
+            dom.stream.appendChild(row);
+            if(shouldScroll) dom.scroll.scrollTo({ top: dom.scroll.scrollHeight, behavior: 'smooth' });
+        }
+
+        function showLoader() {
+            const div = document.createElement('div');
+            div.className = 'flex justify-start mb-6';
+            div.innerHTML = `<div class="chat-bubble bubble-ai text-[10px] font-black animate-pulse uppercase">Thinking...</div>`;
+            dom.stream.appendChild(div);
+            return div;
+        }
+
+        const ctx = dom.canvas.getContext('2d');
+        let particles = [];
+        let pActive = true;
+        class Particle {
+            constructor() { this.init(); }
+            init() {
+                this.x = Math.random() * dom.canvas.width;
+                this.y = Math.random() * dom.canvas.height;
+                this.vx = (Math.random() - 0.5) * 0.4;
+                this.vy = (Math.random() - 0.5) * 0.4;
+                this.size = Math.random() * 2;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                if (this.x < 0 || this.x > dom.canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > dom.canvas.height) this.vy *= -1;
+            }
+            draw() {
+                ctx.fillStyle = 'rgba(14, 165, 233, 0.2)';
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        function initParticles() {
+            dom.canvas.width = window.innerWidth;
+            dom.canvas.height = window.innerHeight;
+            particles = Array.from({length: 60}, () => new Particle());
+        }
+        function loop() {
+            if(!pActive) return;
+            ctx.clearRect(0, 0, dom.canvas.width, dom.canvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(loop);
+        }
+
+        window.set = (key, val) => {
+            if(key === 'particles') { pActive = val; if(val) loop(); }
+        };
+
+        window.tab = (id, el) => {
+            document.querySelectorAll('.view-pane').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+            document.getElementById(`view-${id}`).classList.remove('hidden');
+            el.classList.add('active');
+            if(window.innerWidth < 1024) toggleSidebar();
+        };
+
+        window.toggleSidebar = () => {
+            dom.sidebar.classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('hidden');
+        };
+
+        window.onload = () => { 
+            initParticles(); 
+            loop(); 
+            renderHistory();
+            setInterval(() => { dom.clock.innerText = new Date().toLocaleTimeString(); }, 1000); 
+        };
+        dom.in.addEventListener('keydown', (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); run(); } });
+    </script>
+</body>
+</html>
